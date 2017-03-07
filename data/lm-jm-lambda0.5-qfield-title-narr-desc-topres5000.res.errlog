@@ -1,0 +1,27 @@
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 31 --- Document `760331139244519424' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 39 --- Document `760512292756791296' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 43 --- Document `760418142925361152' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 55 --- Document `760329184199610368' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 56 --- Document `760329184199610368' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 59 --- Document `760418142925361152' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 66 --- Document `760418142925361152' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 74 --- Document `760290497919352832' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 94 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 95 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 96 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 97 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 98 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 99 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 100 --- Document `760268629715849216' retrieved more than once for topic MB226
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 102 --- Document `760429725772898304' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 107 --- Document `760488083120939009' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 108 --- Document `760488083120939009' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 109 --- Document `760488083120939009' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 110 --- Document `760488083120939009' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 127 --- Document `760499130158415872' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 132 --- Document `760283946697515008' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 151 --- Document `760369157686919168' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 152 --- Document `760369157686919168' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 153 --- Document `760369157686919168' retrieved more than once for topic MB227
+run lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Error on line 157 --- Document `760479108879048704' retrieved more than once for topic MB227
+check_rts.pl of lm-jm-lambda0.5-qfield-title-narr-desc-topres5000.res: Quit. Too many errors!

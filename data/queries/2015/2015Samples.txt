@@ -1,0 +1,81 @@
+# This file contains SAMPLE topics for the TREC 2015 Microblog track
+# in the format that will be used for the test topics.  While there are
+# no relevance judgments specific to these topics, they were each inspired
+# by other topics from previous years that do have relevance judgments
+# (crossword puzzle tournaments by MB165 "ACPT Crossword Tournament",
+# airline mergers by MB172 "Merging of US Air and American" and
+# statin side effects by MB173 "muscle pain from statins").
+
+# Our expectation is that the set of 250 (or so) test topics will contain
+# related sets of topics that differ in one facet. For example,
+# we could have a set of merger topics that differ by the industry being
+# targeted.  The idea is that there will be sufficient tweets to make it
+# a good topic if a corresponding event happens during the test period,
+# but not otherwise.  A topic that happens to have a trigger event
+# in the test period will be included in the evaluation set, while most
+# others will not be.  (We will include some topics that don't have
+# a triggering event in the test period just to make sure systems can 
+# recognize when no response is the correct response.)
+
+--------------------------------------------------------------------------
+
+
+<top>
+<num> Number: MB10001
+
+<title>
+crossword puzzle tournaments
+
+<desc> Description:
+Return announcements of and commentary regarding crossword puzzle tournaments.
+
+<narr> Narrative:
+The user likes to do crossword puzzles and intends to participate
+in upcoming crossword puzzle tournaments.  She wants to see any Tweets
+that relate to a tournament: Tweets that announce a tournament or give
+logistical information; Tweets about a tournament from its participants
+including Tweets that express anticipation of the tournament or traveling
+to/from the tournament; Tweets that comment on the quality of a tournament;
+etc.
+</top>
+
+
+<top>
+<num> Number: MB10002
+
+<title>
+airline mergers
+
+<desc> Description:
+Information on potential or completed mergers in the airline industry.
+
+<narr> Narrative:
+The user is business analyst with interest in the airline industry.  He
+wants to see Tweets that give substantive information about mergers
+between airlines anywhere in the lifecycle of the merger.
+While commentary regarding how perceptions of the merger will affect
+customers is relevant, a simple expression of an individual opinion
+regarding the merger is not relevant.
+</top>
+
+
+<top>
+<num> Number: MB10003
+
+<title>
+statin side effects
+
+<desc> Description:
+Find information on negative side effects associated with the use of
+statin drugs.
+
+<narr> Narrative:
+The user's physician has recently suggested that he begin a course of
+treatment using statins.  He wants to find Tweets that point
+to published studies of the effects of the drugs as well as Tweets
+relaying personal experience with them.
+</top>
+
+
+
+
