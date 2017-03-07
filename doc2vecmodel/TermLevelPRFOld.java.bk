@@ -1,0 +1,619 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package doc2vecmodel;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import static java.lang.Math.log;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
+
+/**
+ *
+ * @author dwaipayan
+ */
+public class TermLevelPRFOld {
+    Properties      prop;
+    String          queryPath;      // path of the query file
+    File            queryFile;      // the query file
+    WordVecs        wordVecs;
+    String          nnPath;         // path of the precomputed Nearest Neighbour file
+    File            nnFile;
+
+    File        indexFile;          // place where the index is stored
+    Analyzer    analyzer;           // the analyzer
+    IndexWriter indexWriter;
+    boolean     boolIndexExists;    // boolean flag to indicate whether the index exists or not
+//    boolean     boolIndexFromSpec;  // true; false if indexing from collPath
+//    int         docIndexedCounter;
+    IndexReader     reader;
+    IndexSearcher   searcher;
+    String          resPath;        // path of the res file
+    FileWriter      resFileWriter;  // the res file writer
+    int             numWanted;      // number of document to retrieve
+    String          runName;        // name of the run
+    List<TRECQuery> queries;
+
+    double LAMBDA;
+    double MU;
+    double DELTA;
+
+    public TermLevelPRFOld(String propPath) throws IOException, Exception {
+        prop = new Properties();
+        prop.load(new FileReader(propPath));
+        /* property files are loaded */
+
+        /* setting the anlyzer */
+        SetAndGetAnalyzer setGetAnalyzer = new SetAndGetAnalyzer(prop);
+        setGetAnalyzer.setAnalyzer();
+        analyzer = setGetAnalyzer.getAnalyzer();
+        /* analyzer is set */
+
+        /* index path setting */
+        System.out.println("Using index at: "+prop.getProperty("indexPath"));
+        indexFile = new File(prop.getProperty("indexPath"));
+        Directory indexDir = FSDirectory.open(indexFile);
+        /* index path set */
+
+        if (!DirectoryReader.indexExists(indexDir)) {
+            System.err.println("Index doesn't exists in "+indexFile.getAbsolutePath());
+            System.out.println("Terminating");
+            boolIndexExists = false;
+            System.exit(1);
+        }
+
+        /* setting reader and searcher */
+        reader = DirectoryReader.open(FSDirectory.open(indexFile));
+        searcher = new IndexSearcher(reader);
+//        searcher.setSimilarity(new DefaultSimilarity());
+        searcher.setSimilarity(new LMJelinekMercerSimilarity(0.6f));
+        /* reader and searher set */
+
+        /* setting query path */
+        queryPath = prop.getProperty("queryPath");
+        queryFile = new File(queryPath);
+        /* query path set */
+
+        /* constructing the query */
+        queries = constructQuery();
+        /* constructed the query */
+
+        /* setting res path */
+        resPath = prop.getProperty("resPath");
+        resFileWriter = new FileWriter(resPath);
+        /* res path set */
+
+        numWanted = Integer.parseInt(prop.getProperty("numWanted"));
+        runName = prop.getProperty("runName");
+
+        /* === For Query Expansion === */
+        wordVecs = new WordVecs(prop);
+        System.out.println("All word vectors are loaded in worVecs.wordvecmap");
+        /* All word vectors are loaded in worVecs.wordvecmap */
+        wordVecs.k = Integer.parseInt(prop.getProperty("k"));
+
+//        wordVecs.loadPrecomputedNNs();
+        /* precomputed NNs are loaded into memory */
+        /* NOT NEEDED */
+
+    }
+    
+    /**
+     * Sets the List-TrecQuery 'queries'.
+     * <p/>
+     * query file path is read from the prop file.
+    */
+    private List<TRECQuery> constructQuery() throws FileNotFoundException, IOException {
+        TRECQuery trecQuery = new TRECQuery(prop);
+
+        trecQuery.trecQueryParse();
+        return trecQuery.queries;
+    }
+
+    /* returns the cosine similarity of two vectors */
+    double calculateCosSim(double v1[], double v2[]) {
+        int k = v1.length;
+        double dotProduct = 0.0f;
+        double magnitudeV1 = 0.0f;
+        double magnitudeV2 = 0.0f;
+        double euclideanProduct;
+
+        for (int i = 0; i < k; i++) {
+            dotProduct += v1[i]*v2[i];
+            magnitudeV1 += v1[i]*v1[i];
+            magnitudeV2 += v2[i]*v2[i];
+        }
+
+        euclideanProduct = (double) (Math.sqrt(magnitudeV1) * Math.sqrt(magnitudeV2));
+        return dotProduct / euclideanProduct;
+    }
+
+    double calculateDistance(double v1[], double v2[]) {
+        int k = v1.length;
+        double distance;
+
+        distance = 0;
+        for (int i = 0; i < k; i++) {
+            distance += v1[i]*v2[i];
+        }
+
+        return distance;
+    }
+
+
+    /* Add two vectors and returns the resultant vectr */
+    double[] addVector(double v1[], double v2[]) {
+        int l = v1.length;
+        double vec[] = new double[l];
+        double len = 0;
+
+        for (int i = 0; i < l; i++) {
+            vec[i] = (v1[i]+v2[i]);
+            len += vec[i] * vec[i];
+        }
+        len = Math.sqrt(len);
+        for (int i = 0; i < l; i++) 
+            vec[i] /= len;
+
+        return vec;
+    }
+
+    public void retrieveAll() throws Exception {
+        ScoreDoc[] hits;
+        TopDocs topDocs;
+
+        for (TRECQuery query : queries) {
+            TopScoreDocCollector collector = TopScoreDocCollector.create(numWanted, true);
+            Query luceneQuery;
+            luceneQuery = query.getBOWQuery(analyzer);
+            //luceneQuery = getExpandedBOWQuery(analyzer, query);
+
+            //System.out.println(luceneQuery);
+            System.out.println("Initial retrieval for query: " + query.qId);
+            searcher.search(luceneQuery, collector);
+            topDocs = collector.topDocs();
+            hits = topDocs.scoreDocs;
+            if(hits == null)
+                System.out.println("Nothing found");
+            /* initial retrieval done */
+            int hits_length = hits.length;
+
+            StringBuffer resBuffer = new StringBuffer();
+
+            if(Boolean.parseBoolean(prop.getProperty("rerank"))) {
+                /* +++++ Rerank +++++ */
+                System.out.println("Reranking based on TermBasedPRF");
+                List<TrecRes> resList = rerankTermLevelPRF(hits, query);
+                /* ----- Rerank ----- */
+
+                /* writing the result in buffer resBuffer */
+                int res_length = resList.size();
+                for (int r = 0; r < res_length; ++r) {
+                    resBuffer.append(resList.get(r).qId).append("\tQ0\t").
+                        append(resList.get(r).docId).append("\t").
+                        append(r).append("\t").
+                        append(resList.get(r).score).append("\t").
+                        append(resList.get(r).runName).append("\n");                
+                }
+            }
+            else {
+            /* baseline run */
+                for (int i = 0; i < hits_length; ++i) {
+                    int docId = hits[i].doc;
+                    Document d = searcher.doc(docId);
+                    resBuffer.append(query.qId).append("\tQ0\t").
+                        append(d.get(Indexer.FIELD_ID)).append("\t").
+                        append((i)).append("\t").
+                        append(hits[i].score).append("\t").
+                        append("lm-jm-baseline").append("\n");                
+                }
+            }
+
+            resFileWriter.write(resBuffer.toString());
+        }
+        resFileWriter.close();
+    }
+
+    private List<double[]> composeQueryTerms(String[] qTerms) {
+        double composedVector[][];            // the composed vectors of each combinations
+        List<double[]> cv = new ArrayList<>();
+        int noOfcomposition = 0;                // possible number of composed vector from 'words'
+        int dimension;                      // dimension of the word vectors
+        int countComposed;                  // counter of the number of composition done
+
+        int queryComposition = Integer.parseInt(prop.getProperty("queryComposition"));
+        if( prop.getProperty("queryComposition") == null ) {
+            System.err.println("Missing queryComposition in properties");
+            System.exit(1);
+        }
+        /*
+        # queryComposition:-
+        ##      Configuration                   Size
+        ##  1: individual terms                 m
+        ##  2: pairwise                         m-1
+        ##  3: all terms together               1
+        ##  4: individual and pairwise          2m-1
+        ##  5: pairwise and all term together   m
+        */
+        int qTitleTermsLength = qTerms.length;
+
+        if(queryComposition == 1 || queryComposition == 5)
+            noOfcomposition = qTitleTermsLength;
+        switch(queryComposition){
+            case 1:
+                noOfcomposition = qTitleTermsLength;
+                break;
+            case 2:
+                noOfcomposition = (qTitleTermsLength>1)?(qTitleTermsLength - 1):1;
+                break;
+            case 3:
+                noOfcomposition = 1;
+                break;
+            case 4:
+                noOfcomposition = 2 * qTitleTermsLength - 1;
+                break;
+            case 5:
+                noOfcomposition = qTitleTermsLength;
+                break;
+        }
+
+        dimension = wordVecs.wordvecmap.get(qTerms[0]).vec.length;
+        composedVector = new double[noOfcomposition][dimension];
+
+        countComposed = 0;
+        /* 1&4: taking only the terms of the query */
+        if( queryComposition == 1 || (queryComposition == 2 && qTitleTermsLength<2) ) {
+            System.out.println("Query terms alone:");
+            for(String word : qTerms){
+                WordVecs.WordVec wv = wordVecs.wordvecmap.get(word);
+                if(wv != null) {
+                    System.out.printf("<%s>\n", word);
+                    composedVector[countComposed++] = wv.vec;
+                    cv.add(wv.vec);
+                }
+                else 
+                    System.out.println("Missing vector of: "+word);
+            }
+            System.out.println("");
+        }
+
+        /* 2&4: pairwise composition */
+        if( (queryComposition == 2 || queryComposition == 4) ) {
+            System.out.println("ComposingPairWise:");
+            for (int i = 0; i < qTitleTermsLength-1; i++) {
+                WordVecs.WordVec wv1 = wordVecs.wordvecmap.get(qTerms[i]);
+                WordVecs.WordVec wv2 = wordVecs.wordvecmap.get(qTerms[i+1]);
+                if(wv1 != null && wv2 != null){
+                    System.out.printf("<%s> <%s>", qTerms[i], qTerms[i+1]);
+                    for(int j=0; j<dimension; j++) {
+                        composedVector[countComposed][j] += (wv1.vec[j]/wv1.norm + wv2.vec[j]/wv2.norm);
+                    }
+                    cv.add(composedVector[countComposed]);
+                    countComposed ++;
+                }
+                System.out.println("");
+            }
+        }
+
+        /* 3&5: Composing all the terms of the query together */
+        if(qTitleTermsLength>2) {
+            if(queryComposition == 3 || queryComposition == 5) {
+                System.out.println("ComposingAll:");
+                for(String word : qTerms) {
+                    WordVecs.WordVec wv = wordVecs.wordvecmap.get(word);
+                    if(wv != null) {
+                        System.out.printf("<%s> ", word);
+                        for(int i=0; i<dimension; i++) {
+                            composedVector[countComposed][i] += wv.vec[i]/wv.norm;
+                        }
+                        cv.add(composedVector[countComposed]);
+                    }
+                }
+                System.out.println("");
+                countComposed ++;
+            }
+        }
+
+        /* countComposed = number of composed vectors formed */
+
+        return cv;
+    }
+
+    /** For each term of the initial retrieved documents,
+     *  calculate the similarity of the term with the query (Vector similarity)
+     * @arg 1. Initial retrieved hits, 2. query
+    */
+    private List<TrecRes> rerankTermLevelPRF(ScoreDoc[] hits, TRECQuery query) throws IOException, Exception {
+        int hits_length = hits.length;
+        LinkedHashMap<String, WordVecs.SimilarWords> initialRetrievedWord_HashMap = new LinkedHashMap<>();
+        String[] qTitleTerms = TRECQuery.queryFieldAnalyze(analyzer, query.qTitle).split("\\s+");
+
+        /* +++++ Query vector composition ----- */
+        List<double[]> composedVector = new ArrayList<>();           // the composed vectors of each combinations
+        int countComposed;                  // counter of the number of composition done
+
+        composedVector = composeQueryTerms(qTitleTerms);
+        countComposed = composedVector.size();
+
+        /* countComposed = number of composed vectors formed */
+        /* ----- Query vector composition done ----- */
+
+        /* +++++ the initial Vocabulary making +++++ */
+        for (int i = 0; i < hits_length; i++) {
+        /* for each of the initial retrieved documents */
+            int docId = hits[i].doc;
+
+            Terms vector = reader.getTermVector(docId, Indexer.FIELD_BOW);
+            TermsEnum termsEnum = null;
+            termsEnum = vector.iterator(termsEnum);
+            BytesRef text;
+            while ((text = termsEnum.next()) != null) {
+            /* for each of the words of that initially retrieved document */
+                String term = text.utf8ToString();
+                //System.out.println(term);
+
+                /* Query words ignored */
+                //if(!Arrays.asList(qTitleTerms).contains(term))
+                {
+
+                    WordVecs.SimilarWords value = initialRetrievedWord_HashMap.get(term);
+
+                    if(value == null) {
+//                        System.out.println("Not Exists in map: "+term+" "+docId);
+                        WordVecs.WordVec wv = wordVecs.wordvecmap.get(term);
+                        if(wv == null) {
+                        }
+                        else {
+                            WordVecs.SimilarWords sw = new WordVecs.SimilarWords(term, wv.vec, -2.0, 1, 1);
+                            //* (term, vector, similarity, tf, df)
+                            //* querySim is initialised with -2.0 
+                            initialRetrievedWord_HashMap.put(term, sw);
+                        }
+                    }
+                    else {
+                        value.tf += termsEnum.totalTermFreq();
+                        value.df++;
+
+                        initialRetrievedWord_HashMap.put(term, value);
+                    }
+                }
+            }
+        }
+        /* ----- Initial vocabulary built ----- */
+
+        /* +++++ Query similarity calculation +++++ */
+
+        /* For each of the composed query vectors:
+            For each of the initially retrieved words, 
+            calculate the max similarity with the query terms
+        */
+        for (int j=0; j< countComposed; j++) {
+            for(String key : initialRetrievedWord_HashMap.keySet()) {
+                WordVecs.SimilarWords value = initialRetrievedWord_HashMap.get(key);
+                double sim =  calculateCosSim(value.vec, composedVector.get(j));
+
+                value.similarityWithEachComposedQuery.add(sim); // new similarity added to the similarity list
+                if(sim > value.querySim)
+                /* if new similarity is greater than the previous one:
+                    then only place the new similarity into maxSimi
+                */
+                    value.querySim = sim;
+
+                initialRetrievedWord_HashMap.put(key, value);
+            }
+        }
+        /* ----- Query similarity is calculated ----- */
+
+        List<Map.Entry<String, WordVecs.SimilarWords>> initialRetrievedWord_List = new ArrayList<>(initialRetrievedWord_HashMap.entrySet());
+
+        Collections.sort(
+            initialRetrievedWord_List, new Comparator<Map.Entry<String, WordVecs.SimilarWords>>() {
+                @Override
+                public int compare(Map.Entry<String, WordVecs.SimilarWords> r1,
+                    Map.Entry<String, WordVecs.SimilarWords> r2) {
+                    return Double.compare(r2.getValue().querySim, r1.getValue().querySim);
+                }
+            }
+        );
+
+//        for (int i=0; i<entryList.size(); i++)
+//            System.out.println(entryList.get(i).getValue().word+" "+entryList.get(i).getValue().querySim+" "+entryList.get(i).getValue().tf+" "+entryList.get(i).getValue().df);
+
+        /* Query similarities sorted in the decreasing order of similarity */
+
+        /* ++++ Reranking +++++ */
+        int numberOfRelTerms;       // the number of terms which will be treated as relevant
+        numberOfRelTerms = Integer.parseInt(prop.getProperty("numberOfRelTerms","500"));
+        int sizeOfR = 0;            // size of the Relevant Set
+        int sizeOfNr = 0;           // size of the Non-relevant set
+        int sizeOfD = 0;            // size of the Document under consideration
+        List<TrecRes> resList = new ArrayList<>();
+
+        for (int i = 0; i < numberOfRelTerms; i++) 
+            sizeOfR += initialRetrievedWord_List.get(i).getValue().tf;
+
+        double collectionSize = reader.getSumDocFreq(Indexer.FIELD_BOW);
+
+        int initialVocSize = initialRetrievedWord_List.size();
+
+        for (int i = 0; i < hits_length; i++) {
+        /* for each of the initial retrieved documents */
+            //System.out.println(i);
+
+            double kld = 0;             // KL-Divergence
+            double kldNr = 1;           // KL-Divergence with NonRelevant set
+
+            int docId = hits[i].doc;
+            Document d = searcher.doc(docId);
+            double pR = 0, pD = 0, pNr = 0;
+
+            LinkedHashMap<String, Long> documentVector = new LinkedHashMap<>();  // contain term frequency of each term of the document
+            Terms vector = reader.getTermVector(docId, Indexer.FIELD_BOW);
+            TermsEnum termsEnum = null;
+            termsEnum = vector.iterator(termsEnum);
+            BytesRef text;
+            /* +++++ Calculating document length +++++ */
+            int docUniqueTermCount = 0;
+            while ((text = termsEnum.next()) != null) {
+            //* for each of the words of that initially retrieved document under consideration
+                String term = text.utf8ToString();
+                documentVector.put(term, termsEnum.totalTermFreq());
+
+                sizeOfD += termsEnum.totalTermFreq();
+                docUniqueTermCount++;
+            }
+            //numberOfRelTerms = docUniqueTermCount;
+            //System.out.println(sizeOfD+" and "+sizeOfR);
+            /* ----- Calculating document length ----- */
+
+            LAMBDA = Double.parseDouble(prop.getProperty("LAMBDA"));
+            MU = Double.parseDouble(prop.getProperty("MU"));
+            DELTA = Double.parseDouble(prop.getProperty("DELTA"));
+
+            double similarityScoreComponent = 0;
+
+            /* +++ For each term in top R or, V +++ */
+            for (int j=0; j<Math.min(numberOfRelTerms, initialVocSize); j++) {
+            //* for each term in top R
+                String term = initialRetrievedWord_List.get(j).getKey();
+                WordVecs.SimilarWords value = initialRetrievedWord_List.get(j).getValue();
+            
+            /* // Taking too much time and giving same result
+            for (int j=0; j<initialVocSize; j++) {
+            //* for each term in initial retrieved vocabulary 
+                String term = initialRetrievedWord_List.get(j).getKey();
+                WordVecs.SimilarWords value = initialRetrievedWord_List.get(j).getValue();
+            */
+
+                Long tfD = documentVector.get(term);
+                Term t = new Term(Indexer.FIELD_BOW, term);
+                int dfD = reader.docFreq(t);
+                //System.out.println(dfD);
+
+                if(tfD == null) {
+                /* term is not in the document under consideration */
+                    tfD = 0L;
+                }
+                /* pD = Lambda*P(t from D) + (1-Lambda)*P(t from C) */
+                pD = LAMBDA * ((double)tfD/(double)sizeOfD ) 
+                    + (1-LAMBDA)*((double)dfD / collectionSize);
+                /* pR = Mu*P(t from R) + (1-Lambda)*P(t from C) */
+                pR = MU * ((double)value.tf/(double)sizeOfR)
+                    + (1-MU) * ((double)dfD / collectionSize);
+
+                if(Boolean.parseBoolean(prop.getProperty("useSimilarityScore"))) {
+                    //* (1/sqrt(2*PI*SIGMA)) * e^((-1/2)*(sim(t,q)/SIGMA)^2)
+                    //* SIGMA = 1
+                    for (Double similarityWithEachComposedQuery : value.similarityWithEachComposedQuery) {
+                        similarityScoreComponent += (1/Math.sqrt(2*Math.PI)) * Math.exp((-0.5) * Math.pow(similarityWithEachComposedQuery, 2));
+                    }
+                    pR = pR * similarityScoreComponent;
+                    pD = pD * similarityScoreComponent;
+                }
+
+                kld += (pR*log(pR)) - (pR*log(pD));
+                //System.out.println(pR + " " + pD);
+                //System.out.println(kld);
+            }
+            /* --- For each term in top R or, V --- */
+
+            double score;
+            score = 1/kld;
+            /* +++ Considering NonRelevant terms +++ */
+            boolean considerNegetiveFeedback = Boolean.parseBoolean(prop.getProperty("considerNegetiveFeedback", "false"));
+            if (considerNegetiveFeedback) {
+                for (int j = initialVocSize-1; j >= initialVocSize - numberOfRelTerms; j--) 
+                    sizeOfNr += initialRetrievedWord_List.get(j).getValue().tf;
+
+                for (int j = initialVocSize-1; j >= initialVocSize - numberOfRelTerms; j--) {
+                    String term = initialRetrievedWord_List.get(j).getKey();
+                    WordVecs.SimilarWords value = initialRetrievedWord_List.get(j).getValue();
+
+                    Long tfD = documentVector.get(term);
+                    Term t = new Term(Indexer.FIELD_BOW, term);
+                    int dfD = reader.docFreq(t);
+                    //System.out.println(dfD);
+
+                    if(tfD == null)
+                    ///* term is not in the document under consideration 
+                        tfD = 1L;
+
+                    pNr = DELTA * ((double)value.tf/(double)sizeOfNr)
+                        + (1-DELTA) * ((double)dfD / collectionSize);
+
+                    if(Boolean.parseBoolean(prop.getProperty("useSimilarityScore"))) {
+                        //* (1/sqrt(2*PI*SIGMA)) * e^((-1/2)*(sim(t,q)/SIGMA)^2)
+                        //* SIGMA = 1
+                        for (Double similarityWithEachComposedQuery : value.similarityWithEachComposedQuery) {
+                            similarityScoreComponent += (1/Math.sqrt(2*Math.PI)) * Math.exp((-0.5) * Math.pow(similarityWithEachComposedQuery, 2));
+                        }
+                        pNr = pNr * similarityScoreComponent;
+                    }
+
+                    kldNr += (pNr * log(pNr)) - (pNr * log(pD));
+
+                }
+                score = 0.7*1/kld - 0.3*1/kldNr;
+            }
+            /* --- Considering NonRelevant terms --- */
+
+            TrecRes tres = new TrecRes(query.qId, d.get(Indexer.FIELD_ID) , i, (float)score/*hits[i].score*/, "rerank");
+
+            tres.luceneDocId = hits[i].doc;
+            resList.add(tres);
+
+            Collections.sort (resList, new Comparator<TrecRes>(){
+                @Override
+                public int compare(TrecRes r1, TrecRes r2){
+                    return r1.score < r2.score? 1 : r1.score == r2.score? 0 : -1;
+                }}
+            );
+
+        }
+        return resList;
+        /* ----- Reranking ----- */
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        if(args.length == 0) {
+            System.out.printf("Usage: java TermLevelPRF <init.properties>\n");
+//            System.exit(1);
+            args = new String[2];
+            args[0] = "/home/dwaipayan/doc2vecModel/init.properties";
+        }
+
+        TermLevelPRFOld prf = new TermLevelPRFOld(args[0]);
+
+        prf.retrieveAll();
+
+    }
+}
